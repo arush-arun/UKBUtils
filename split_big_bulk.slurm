@@ -9,36 +9,52 @@
 #SBATCH -o slurm_%j_output.txt
 #SBATCH -e slurm_%j_error.txt
 
+#   Splits a UK Biobank bulk file into n roughly equal parts.
+#   Output files are renamed to <ID>_part_n1.bulk through <ID>_part_n4.bulk
+
+# Usage:
+#   sbatch split_bulk_file.slurm <UKB_ID> <NUM_PARTS>
+#   Example:
+#     sbatch split_bulk_file.slurm 20250 6
+
 # -------------------------- USER CONFIGURATION ------------------------------
 
-ID="20250"
-input_file="/scratch/user/uqahonne/ukb/${ID}.bulk"
-
-# -------------------------- CHECK IF FILE EXISTS ----------------------------
-
-if [[ ! -f "$input_file" ]]; then
-    echo "Error: Input file $input_file does not exist."
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: sbatch $0 <UKB_ID> <NUM_PARTS>"
+    echo "Example: sbatch $0 20250 6"
     exit 1
 fi
 
-# -------------------------- SPLIT LOGIC -------------------------------------
+ID="$1"
+NUM_PARTS="$2"
+input_file="/scratch/user/${USER}/ukb/${ID}.bulk"
 
-# Count total number of lines in the input file
-lines=$(wc -l < "$input_file")
+# ------------------------ VALIDATE INPUT FILE --------------------------
 
-# Calculate number of lines per split file (rounded up to ensure full coverage)
-lines_per_file=$(( (lines + 3) / 4 ))  # 4 parts
+if [[ ! -f "$input_file" ]]; then
+    echo "Error: File $input_file does not exist."
+    exit 1
+fi
 
-# Split the input file into 4 parts using numeric suffixes
-split -d -l "$lines_per_file" "$input_file" input_part_
+if ! [[ "$NUM_PARTS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: NUM_PARTS must be a positive integer."
+    exit 1
+fi
 
-# Rename parts to readable format (e.g., 20250_part_1.bulk)
-mv input_part_00 ${ID}_part_1.bulk
-mv input_part_01 ${ID}_part_2.bulk
-mv input_part_02 ${ID}_part_3.bulk
-mv input_part_03 ${ID}_part_4.bulk
+# ------------------------ SPLIT LOGIC ----------------------------------
 
-# Output confirmation
-echo "Split into 4 parts:"
+total_lines=$(wc -l < "$input_file")
+lines_per_file=$(( (total_lines + NUM_PARTS - 1) / NUM_PARTS ))  # ceiling division
+
+split -d -l "$lines_per_file" "$input_file" "${ID}_part_"
+
+# ------------------------ RENAME FILES ---------------------------------
+
+counter=1
+for file in ${ID}_part_??; do
+    mv "$file" "${ID}_part_${counter}.bulk"
+    ((counter++))
+done
+
+echo "Successfully split ${ID}.bulk into ${NUM_PARTS} parts:"
 wc -l ${ID}_part_*.bulk
-
