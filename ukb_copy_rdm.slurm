@@ -38,7 +38,17 @@ if [[ ! -d $1 ]];then
     echo "Error: $1 needs to be a folder"
     exit 1;
 fi
-
+SRCFOLDER="$1"
 RDMDEST=/QRISdata/Q7990/bulk
 
 rsync -azvvh $1 $RDMDEST
+
+echo "Starting rsync from $SRCFOLDER to $RDMDEST..."
+
+rsync -azvvh --partial --inplace "$SRCFOLDER" "$RDMDEST"
+
+if [ $? -eq 0 ]; then
+    echo "Rsync completed successfully!"
+else
+    echo "Rsync was interrupted or failed. You can safely rerun the job to continue copying."
+fi
